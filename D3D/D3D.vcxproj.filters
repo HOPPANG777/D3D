@@ -1,19 +1,35 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClInclude Include="D3D.h" />
-    <ClInclude Include="framework.h" />
-    <ClInclude Include="Resource.h" />
-    <ClInclude Include="targetver.h" />
+    <ClInclude Include="targetver.h">
+      <Filter>Program</Filter>
+    </ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>Program</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="D3D.ico" />
-    <Image Include="small.ico" />
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="D3D.rc" />
+    <Image Include="small.ico">
+      <Filter>Program</Filter>
+    </Image>
+    <Image Include="D3D.ico">
+      <Filter>Program</Filter>
+    </Image>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="D3D.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Program">
+      <UniqueIdentifier>{544ce9f0-e6f5-497a-b4f0-8959a3cc2d3a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Object">
+      <UniqueIdentifier>{1d5e7f76-3748-4f9c-b8d0-11d04d56d59a}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="D3D.rc">
+      <Filter>Program</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

@@ -8,6 +8,8 @@
 #include <DirectXMath.h>
 #include <cstdint>
 #include <cstdio>
+#include <memory>
+#include <vector>
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -16,29 +18,29 @@
 using namespace DirectX;
 
 // --------------------------------- 전역 ---------------------------------
-HWND                    g_hWnd = nullptr;
-UINT                    g_Width = 1280, g_Height = 720;
+static HWND                    g_hWnd = nullptr;
+static UINT                    g_Width = 1280, g_Height = 720;
 
-IDXGISwapChain* g_SwapChain = nullptr;              // [1]
-ID3D11Device* g_Device = nullptr;                   // [2]
-ID3D11DeviceContext* g_Context = nullptr;           // [3]
-ID3D11RenderTargetView* g_RTV = nullptr;            // [4]
-ID3D11Texture2D* g_Depth = nullptr;                 // [5]
-ID3D11DepthStencilView* g_DSV = nullptr;            // [6]
+static IDXGISwapChain* g_SwapChain = nullptr;              // [1]
+static ID3D11Device* g_Device = nullptr;                   // [2]
+static ID3D11DeviceContext* g_Context = nullptr;           // [3]
+static ID3D11RenderTargetView* g_RTV = nullptr;            // [4]
+static ID3D11Texture2D* g_Depth = nullptr;                 // [5]
+static ID3D11DepthStencilView* g_DSV = nullptr;            // [6]
 
-ID3D11Buffer* g_VB = nullptr;                       // 정점 버퍼
-ID3D11Buffer* g_IB = nullptr;                       // 인덱스 버퍼
-ID3D11InputLayout* g_InputLayout = nullptr;         // 입력 레이아웃
-ID3D11VertexShader* g_VS = nullptr;                 // VS
-ID3D11PixelShader* g_PS = nullptr;                  // PS
-ID3D11Buffer* g_CBuffer = nullptr;                  // 상수버퍼(b0: 행렬/조명)
+static ID3D11Buffer* g_VB = nullptr;                       // 정점 버퍼
+static ID3D11Buffer* g_IB = nullptr;                       // 인덱스 버퍼
+static ID3D11InputLayout* g_InputLayout = nullptr;         // 입력 레이아웃
+static ID3D11VertexShader* g_VS = nullptr;                 // VS
+static ID3D11PixelShader* g_PS = nullptr;                  // PS
+static ID3D11Buffer* g_CBuffer = nullptr;                  // 상수버퍼(b0: 행렬/조명)
 
-ID3D11RasterizerState* g_RS = nullptr;              // 래스터라이저(백페이스 컬링)
-ID3D11DepthStencilState* g_DSS = nullptr;           // 깊이 스텐실 상태
-ID3D11SamplerState* g_Sampler = nullptr;            // (텍스처 없지만 샘플러 예시로 생성可)
+static ID3D11RasterizerState* g_RS = nullptr;              // 래스터라이저(백페이스 컬링)
+static ID3D11DepthStencilState* g_DSS = nullptr;           // 깊이 스텐실 상태
+static ID3D11SamplerState* g_Sampler = nullptr;            // (텍스처 없지만 샘플러 예시로 생성可)
 
-LARGE_INTEGER           g_Freq{}, g_Prev{};
-float                   g_Time = 0.0f;              // 누적 시간 (회전)
+static LARGE_INTEGER           g_Freq{}, g_Prev{};
+static float                   g_Time = 0.0f;              // 누적 시간 (회전)
 
 // --------------------------------- 유틸 ---------------------------------
 #ifndef HR
@@ -46,14 +48,14 @@ float                   g_Time = 0.0f;              // 누적 시간 (회전)
 #endif
 
 // --------------------------------- 자료형 ---------------------------------
-struct VertexPNT          // [7]
+static struct VertexPNT          // [7]
 {
     XMFLOAT3 pos;         // POSITION
     XMFLOAT3 normal;      // NORMAL
     XMFLOAT3 color;       // COLOR (조명 전 기본 색)
 };
 
-struct CBFrame            // b0: 한 프레임 상수버퍼
+static struct CBFrame            // b0: 한 프레임 상수버퍼
 {
     XMMATRIX World;
     XMMATRIX View;
@@ -93,7 +95,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
     InitD3D(g_hWnd);
     CreatePipeline();
     CreateCube();
-
+    CreateCube();
+    
     QueryPerformanceFrequency(&g_Freq);
     QueryPerformanceCounter(&g_Prev);
 
@@ -348,7 +351,7 @@ void UpdateAndDraw()
     g_Prev = now; g_Time += float(dt);
 
     // 카메라/행렬
-    XMVECTOR eye = XMVectorSet(0.0f, 2.0f, -6.0f, 1.0f);  // 뒤에서 앞으로 보는 카메라
+    XMVECTOR eye = XMVectorSet(0.0f, 2.0f, -7.0f, 1.0f);  // 뒤에서 앞으로 보는 카메라
     XMVECTOR at = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
     XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
     XMMATRIX View = XMMatrixLookAtLH(eye, at, up);        // [11]
@@ -356,10 +359,34 @@ void UpdateAndDraw()
     float aspect = (float)g_Width / (float)g_Height;
     XMMATRIX Proj = XMMatrixPerspectiveFovLH(XMConvertToRadians(60.0f), aspect, 0.1f, 100.0f); // [12]
 
-    XMMATRIX World = XMMatrixRotationY(g_Time) * XMMatrixRotationX(g_Time * 1.5f); // 회전
+    XMMATRIX World = XMMatrixRotationY(g_Time); // 회전
     
+    /*
+        지금 이 회전이 어떤식으로 변형이 되냐 그거시 문제로다
+        흠 이 회전/이동 방향을 바꾸는거다
+
+        이동은 어떻게 이루어지는것인가
+        지금 저 월드 행렬에 곱하는것은 결국 XY의 Rotation 그러니까 회전 행렬을 곱해서 회전만 하는거 아님?
+        여기서 이동이 어디서 일어나는 걸까
+
+        그러니까 정확히는 말만 이동 후 회전인거지 실제로는 이동하는게 아닌거다
+        이게 보는 관점에 따라서 다른거임
+
+        지구처럼 움직인다고 생각하면 쉽다.
+
+        실제로 지구는 태양을 따라서 회전하는데 이동하고 있잖슴
+        이런거 처럼 보는 관점에 따라서 자전하는거냐 공전하는거냐가 나뉘어진다.
+
+        T * R -> 이동 후 회전
+        R * T -> 회전 후 이동
+
+        T -> XMMatrixRotationY 
+        R -> XMMatrixRotationX
+    */
+
     // 조명/카메라
     XMFLOAT3 lightDirWS = XMFLOAT3(-0.5f, -1.0f, -0.2f);
+    //XMFLOAT3 lightDirWS = XMFLOAT3(0f, -1.0f, 0);
     XMFLOAT3 eyePosWS;
     XMStoreFloat3(&eyePosWS, eye);
 
@@ -420,6 +447,7 @@ void Cleanup()
     if (g_Device) { g_Device->Release(); g_Device = nullptr; }
     if (g_SwapChain) { g_SwapChain->Release(); g_SwapChain = nullptr; }
 }
+
 // --------------------------------- 주석 ---------------------------------
 /*
 [1] 스왑체인(SwapChain) : 백버퍼 / 프론트버퍼 교체 메커니즘.Present()로 교체
