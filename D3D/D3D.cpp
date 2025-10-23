@@ -359,8 +359,16 @@ void UpdateAndDraw()
     float aspect = (float)g_Width / (float)g_Height;
     XMMATRIX Proj = XMMatrixPerspectiveFovLH(XMConvertToRadians(60.0f), aspect, 0.1f, 100.0f); // [12]
 
-    XMMATRIX World = XMMatrixRotationY(g_Time); // 회전
-    
+    XMMATRIX World0 = 
+        XMMatrixRotationY(g_Time) *
+        XMMatrixRotationX(g_Time * 1.5f) *
+        XMMatrixTranslation(-2.0f, 0.0f, 0.0f);   // 첫 번째 큐브: 왼쪽으로 이동 후 회전
+
+    XMMATRIX World1 = 
+        XMMatrixRotationZ(-g_Time * 0.7f) *
+        XMMatrixRotationY(g_Time * 0.8f) *
+        XMMatrixTranslation(2.0f, 0.0f, 0.0f);    // 두 번째 큐브: 오른쪽 이동 후 다른 회전
+
     /*
         지금 이 회전이 어떤식으로 변형이 되냐 그거시 문제로다
         흠 이 회전/이동 방향을 바꾸는거다
@@ -392,7 +400,7 @@ void UpdateAndDraw()
 
     // 상수버퍼 업데이트 (주의: HLSL은 column-major, XMMatrix는 row-major 반환 → Transpose)
     CBFrame cb{};
-    cb.World = XMMatrixTranspose(World);
+    cb.World = XMMatrixTranspose(World0);
     cb.View = XMMatrixTranspose(View);
     cb.Proj = XMMatrixTranspose(Proj);
     cb.LightDirWS = lightDirWS;
@@ -420,7 +428,12 @@ void UpdateAndDraw()
     g_Context->ClearRenderTargetView(g_RTV, clear);
     g_Context->ClearDepthStencilView(g_DSV, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
-    // 드로우
+    // 드로우 #1
+    g_Context->DrawIndexed(36, 0, 0);
+
+    // 두 번째 큐브: 월드 행렬만 갱신 후 다시 드로우
+    cb.World = XMMatrixTranspose(World1);
+    g_Context->UpdateSubresource(g_CBuffer, 0, nullptr, &cb, 0, 0);
     g_Context->DrawIndexed(36, 0, 0);
 
     // 표시
