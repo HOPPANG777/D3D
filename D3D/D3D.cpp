@@ -18,29 +18,31 @@
 using namespace DirectX;
 
 // --------------------------------- 전역 ---------------------------------
-static HWND                    g_hWnd = nullptr;
-static UINT                    g_Width = 1280, g_Height = 720;
+static HWND                     g_hWnd = nullptr;
+static UINT                     g_Width = 1280, g_Height = 720;
 
-static IDXGISwapChain* g_SwapChain = nullptr;              // [1]
-static ID3D11Device* g_Device = nullptr;                   // [2]
-static ID3D11DeviceContext* g_Context = nullptr;           // [3]
-static ID3D11RenderTargetView* g_RTV = nullptr;            // [4]
-static ID3D11Texture2D* g_Depth = nullptr;                 // [5]
-static ID3D11DepthStencilView* g_DSV = nullptr;            // [6]
+static IDXGISwapChain*          g_SwapChain = nullptr;             // [1]
+static ID3D11Device*            g_Device = nullptr;                // [2]
+static ID3D11DeviceContext*     g_Context = nullptr;               // [3]
+static ID3D11RenderTargetView*  g_RTV = nullptr;                   // [4]
+static ID3D11Texture2D*         g_Depth = nullptr;                 // [5]
+static ID3D11DepthStencilView*  g_DSV = nullptr;                   // [6]
 
-static ID3D11Buffer* g_VB = nullptr;                       // 정점 버퍼
-static ID3D11Buffer* g_IB = nullptr;                       // 인덱스 버퍼
-static ID3D11InputLayout* g_InputLayout = nullptr;         // 입력 레이아웃
-static ID3D11VertexShader* g_VS = nullptr;                 // VS
-static ID3D11PixelShader* g_PS = nullptr;                  // PS
-static ID3D11Buffer* g_CBuffer = nullptr;                  // 상수버퍼(b0: 행렬/조명)
+static ID3D11Buffer*            g_VB = nullptr;                    // 정점 버퍼
+static ID3D11Buffer*            g_IB = nullptr;                    // 인덱스 버퍼
+static ID3D11InputLayout*       g_InputLayout = nullptr;           // 입력 레이아웃
+static ID3D11VertexShader*      g_VS = nullptr;                    // VS
+static ID3D11PixelShader*       g_PS = nullptr;                    // PS
+static ID3D11Buffer*            g_CBuffer = nullptr;               // 상수버퍼(b0: 행렬/조명)
 
-static ID3D11RasterizerState* g_RS = nullptr;              // 래스터라이저(백페이스 컬링)
-static ID3D11DepthStencilState* g_DSS = nullptr;           // 깊이 스텐실 상태
-static ID3D11SamplerState* g_Sampler = nullptr;            // (텍스처 없지만 샘플러 예시로 생성可)
+static ID3D11RasterizerState*   g_RS = nullptr;                    // 래스터라이저(백페이스 컬링)
+static ID3D11DepthStencilState* g_DSS = nullptr;                   // 깊이 스텐실 상태
+static ID3D11SamplerState*      g_Sampler = nullptr;               // (텍스처 없지만 샘플러 예시로 생성可)
 
-static LARGE_INTEGER           g_Freq{}, g_Prev{};
-static float                   g_Time = 0.0f;              // 누적 시간 (회전)
+static LARGE_INTEGER            g_Freq{}, g_Prev{};
+static float                    g_Time = 0.0f;                     // 누적 시간 (회전)
+static float                    g_RotationSpeedX = 0.0f;            // 회전 속도
+static float                    g_RotationSpeedY = 0.0f;            // 회전 속도
 
 // --------------------------------- 유틸 ---------------------------------
 #ifndef HR
@@ -102,10 +104,22 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
 
     // 루프
     MSG msg{};
-    while (msg.message != WM_QUIT)
+    while (true)
     {
-        if (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) { TranslateMessage(&msg); DispatchMessageW(&msg); }
-        else { UpdateAndDraw(); }
+        if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) 
+        { 
+            if (msg.message == WM_QUIT) break;
+
+            TranslateMessage(&msg); 
+
+
+
+            DispatchMessage(&msg); 
+        }
+        else 
+        { 
+            UpdateAndDraw(); 
+        }
     }
 
     Cleanup();
@@ -131,8 +145,27 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT m, WPARAM wParam, LPARAM lParam)
         }
         return 0;
     case WM_KEYDOWN:
-        if (wParam == VK_ESCAPE) PostQuitMessage(0);
-        return 0;
+        switch (wParam)
+        {
+        case 'W':
+            g_RotationSpeedX += 0.5f;
+            break;
+        case 'A':
+            g_RotationSpeedY -= 0.5f;
+            break;
+        case 'S':
+            g_RotationSpeedX -= 0.5f;
+            break;
+        case 'D':
+            g_RotationSpeedY += 0.5f;
+            break;
+        case VK_ESCAPE:
+            PostQuitMessage(0);
+            break;
+        default:
+            break;
+        }
+        break;
     case WM_DESTROY:
         PostQuitMessage(0);
         return 0;
@@ -279,7 +312,7 @@ void CreatePipeline()
 
     // 래스터라이저(백페이스 컬링)  [10]
     D3D11_RASTERIZER_DESC rs{};
-    rs.FillMode = D3D11_FILL_SOLID; rs.CullMode = D3D11_CULL_BACK; rs.DepthClipEnable = TRUE;
+    rs.FillMode = D3D11_FILL_SOLID; rs.CullMode = D3D11_CULL_FRONT; rs.DepthClipEnable = TRUE;
     HR(g_Device->CreateRasterizerState(&rs, &g_RS));
 
     // 깊이 스텐실 상태 (기본: less)
@@ -356,18 +389,17 @@ void UpdateAndDraw()
     XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
     XMMATRIX View = XMMatrixLookAtLH(eye, at, up);        // [11]
 
+
+
     float aspect = (float)g_Width / (float)g_Height;
     XMMATRIX Proj = XMMatrixPerspectiveFovLH(XMConvertToRadians(60.0f), aspect, 0.1f, 100.0f); // [12]
 
-    XMMATRIX World0 = 
-        XMMatrixRotationY(g_Time) *
-        XMMatrixRotationX(g_Time * 1.5f) *
-        XMMatrixTranslation(-2.0f, 0.0f, 0.0f);   // 첫 번째 큐브: 왼쪽으로 이동 후 회전
+    XMMATRIX World0 = XMMatrixRotationY(g_Time * g_RotationSpeedY) * XMMatrixRotationX(g_Time * g_RotationSpeedX);
 
-    XMMATRIX World1 = 
-        XMMatrixRotationZ(-g_Time * 0.7f) *
-        XMMatrixRotationY(g_Time * 0.8f) *
-        XMMatrixTranslation(2.0f, 0.0f, 0.0f);    // 두 번째 큐브: 오른쪽 이동 후 다른 회전
+    //XMMATRIX World1 = 
+    //    XMMatrixRotationZ(-g_Time * 0.7f) *
+    //    XMMatrixRotationY(g_Time * 0.8f) *
+    //    XMMatrixTranslation(2.0f, 0.0f, 0.0f);    // 두 번째 큐브: 오른쪽 이동 후 다른 회전
 
     /*
         지금 이 회전이 어떤식으로 변형이 되냐 그거시 문제로다
@@ -432,9 +464,9 @@ void UpdateAndDraw()
     g_Context->DrawIndexed(36, 0, 0);
 
     // 두 번째 큐브: 월드 행렬만 갱신 후 다시 드로우
-    cb.World = XMMatrixTranspose(World1);
-    g_Context->UpdateSubresource(g_CBuffer, 0, nullptr, &cb, 0, 0);
-    g_Context->DrawIndexed(36, 0, 0);
+    //cb.World = XMMatrixTranspose(World1);
+    //g_Context->UpdateSubresource(g_CBuffer, 0, nullptr, &cb, 0, 0);
+    //g_Context->DrawIndexed(36, 0, 0);
 
     // 표시
     g_SwapChain->Present(1, 0);
